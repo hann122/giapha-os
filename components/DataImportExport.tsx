@@ -41,6 +41,7 @@ export default function DataImportExport() {
             .from('persons')
             .select('id, full_name, birth_year, gender, avatar_url, generation')
             .order('birth_year', { ascending: true, nullsFirst: false })
+            .order('id')
             .range(from, from + step - 1)
 
           if (!data || data.length === 0) break

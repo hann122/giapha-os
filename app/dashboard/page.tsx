@@ -18,6 +18,7 @@ import Link from 'next/link'
 import { getServerTranslations } from '@/lib/i18n/server'
 import { getTodayLunar } from '@/utils/dateHelpers'
 import { computeEvents } from '@/utils/eventHelpers'
+import { fetchAllRows } from '@/utils/supabase/fetchAll'
 import { getIsAdmin, getSupabase } from '@/utils/supabase/queries'
 
 /* ── Event type helpers ───────────────────────────────────────────── */
@@ -45,15 +46,24 @@ export default async function DashboardLaunchpad() {
   const supabase = await getSupabase()
 
   /* ── Fetch events data ────────────────────────────────────────── */
-  const { data: persons } = await supabase
-    .from('persons')
-    .select(
-      'id, full_name, birth_year, birth_month, birth_day, death_year, death_month, death_day, death_lunar_year, death_lunar_month, death_lunar_day, is_deceased'
+  const [{ data: persons }, { data: customEvents }] = await Promise.all([
+    fetchAllRows((from, to) =>
+      supabase
+        .from('persons')
+        .select(
+          'id, full_name, birth_year, birth_month, birth_day, death_year, death_month, death_day, death_lunar_year, death_lunar_month, death_lunar_day, is_deceased'
+        )
+        .order('id')
+        .range(from, to)
+    ),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('custom_events')
+        .select('id, name, content, event_date, location, created_by')
+        .order('id')
+        .range(from, to)
     )
-
-  const { data: customEvents } = await supabase
-    .from('custom_events')
-    .select('id, name, content, event_date, location, created_by')
+  ])
 
   const allEvents = computeEvents(persons ?? [], customEvents ?? [])
   const upcomingEvents = allEvents.filter(

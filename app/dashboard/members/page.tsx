@@ -2,6 +2,7 @@ import MembersViews from '@/components/MembersViews'
 import MemberDetailModal from '@/components/modal/MemberDetailModal'
 import ViewToggle, { ViewMode } from '@/components/ViewToggle'
 import { MemberListProvider } from '@/context/MemberListContext'
+import { fetchAllRows } from '@/utils/supabase/fetchAll'
 import { getProfile, getSupabase } from '@/utils/supabase/queries'
 
 interface PageProps {
@@ -24,11 +25,17 @@ export default async function FamilyTreePage({ searchParams }: PageProps) {
   const supabase = await getSupabase()
 
   const [personsRes, relsRes] = await Promise.all([
-    supabase
-      .from('persons')
-      .select('*')
-      .order('birth_year', { ascending: true, nullsFirst: false }),
-    supabase.from('relationships').select('*')
+    fetchAllRows((from, to) =>
+      supabase
+        .from('persons')
+        .select('*')
+        .order('birth_year', { ascending: true, nullsFirst: false })
+        .order('id')
+        .range(from, to)
+    ),
+    fetchAllRows((from, to) =>
+      supabase.from('relationships').select('*').order('id').range(from, to)
+    )
   ])
 
   const persons = personsRes.data || []

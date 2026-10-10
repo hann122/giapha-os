@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import type { TranslationKey, TranslationValues } from '@/lib/i18n/messages'
 import { getServerTranslations } from '@/lib/i18n/server'
 import { Relationship } from '@/types'
+import { fetchAllRows } from '@/utils/supabase/fetchAll'
 import { getIsAdmin, getSupabase } from '@/utils/supabase/queries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -259,27 +260,26 @@ export async function exportData(
   const supabase = await getSupabase()
 
   // Fetch ALL rows using pagination to avoid the 1000-row Supabase limit.
+  // A unique tie-breaker column keeps the page boundaries stable.
   const fetchAll = async <T>(
     table: string,
     selectCols: string,
-    orderBy: string
+    orderBy: string,
+    tieBreaker = 'id'
   ): Promise<T[]> => {
-    let allData: T[] = []
-    let from = 0
-    const step = 1000
-    while (true) {
-      const { data, error } = await supabase
+    const { data, error } = await fetchAllRows<T>((from, to) => {
+      let query = supabase
         .from(table)
         .select(selectCols)
         .order(orderBy, { ascending: true })
-        .range(from, from + step - 1)
-      if (error) throw error
-      if (!data || data.length === 0) break
-      allData = allData.concat(data as T[])
-      if (data.length < step) break
-      from += step
-    }
-    return allData
+      if (tieBreaker !== orderBy) query = query.order(tieBreaker)
+      return query.range(from, to) as unknown as PromiseLike<{
+        data: T[] | null
+        error: { message: string } | null
+      }>
+    })
+    if (error) throw new Error(error.message)
+    return data
   }
 
   let allPersons: PersonExport[] = []
@@ -302,6 +302,7 @@ export async function exportData(
     allPrivateDetails = await fetchAll<PersonDetailsPrivateExport>(
       'person_details_private',
       'person_id, phone_number, occupation, current_residence',
+      'person_id',
       'person_id'
     )
     allCustomEvents = await fetchAll<CustomEventExport>(

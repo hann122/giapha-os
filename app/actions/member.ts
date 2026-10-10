@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 import { getServerTranslations } from '@/lib/i18n/server'
+import { fetchAllRows, fetchInChunks } from '@/utils/supabase/fetchAll'
 import { getProfile, getSupabase } from '@/utils/supabase/queries'
 
 const UUID_PATTERN =
@@ -93,10 +94,18 @@ export async function updateDescendantGenerationsAction(
   }
 
   // 1. Fetch all parent-child relationships
-  const { data: relationships, error: relError } = await supabase
-    .from('relationships')
-    .select('person_a, person_b, type')
-    .in('type', ['biological_child', 'adopted_child'])
+  const { data: relationships, error: relError } = await fetchAllRows<{
+    person_a: string
+    person_b: string
+    type: string
+  }>((from, to) =>
+    supabase
+      .from('relationships')
+      .select('person_a, person_b, type')
+      .in('type', ['biological_child', 'adopted_child'])
+      .order('id')
+      .range(from, to)
+  )
 
   if (relError) {
     console.error('Error fetching relationships:', relError)
@@ -128,10 +137,12 @@ export async function updateDescendantGenerationsAction(
   const descendantIds = Array.from(descendants)
 
   // 3. Fetch current generations of descendants
-  const { data: persons, error: personsError } = await supabase
-    .from('persons')
-    .select('id, generation')
-    .in('id', descendantIds)
+  const { data: persons, error: personsError } = await fetchInChunks<
+    string,
+    { id: string; generation: number | null }
+  >(descendantIds, (ids) =>
+    supabase.from('persons').select('id, generation').in('id', ids)
+  )
 
   if (personsError) {
     console.error('Error fetching persons:', personsError)
