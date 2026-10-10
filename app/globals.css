@@ -53,6 +53,24 @@ select {
   cursor: pointer;
 }
 
+/* Visible keyboard focus (amber is the design system's focus color) */
+:where(a, button, select, summary, [role='button'], [tabindex]):focus-visible {
+  outline: 2px solid var(--color-tertiary);
+  outline-offset: 2px;
+}
+
+/* Respect users who ask for less motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Design system buttons */
 .btn-primary {
   @apply inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-4 text-sm font-medium text-surface transition-all duration-300 hover:-translate-y-1 hover:bg-[#292524] hover:shadow-soft-hover;

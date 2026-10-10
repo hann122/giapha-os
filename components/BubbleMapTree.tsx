@@ -220,7 +220,9 @@ export default function BubbleMapTree({
         .scaleExtent([0.1, 4])
         .on('zoom', (event) => {
           g.attr('transform', event.transform)
-          setZoomLevel(event.transform.k)
+          // Only re-render React when the displayed percentage changes
+          const k = Math.round(event.transform.k * 100) / 100
+          setZoomLevel((prev) => (prev === k ? prev : k))
         })
       zoomRef.current = zoom
       svg.call(
@@ -265,6 +267,11 @@ export default function BubbleMapTree({
             .radius((d) => d.width / 2 + 15)
             .iterations(2)
         )
+
+      // Large families: settle faster so the layout stops moving sooner
+      if (nodes.length > 300) {
+        simulation.alphaDecay(nodes.length > 1000 ? 0.06 : 0.04)
+      }
 
       // Draw links
       const link = g

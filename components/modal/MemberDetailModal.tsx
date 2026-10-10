@@ -35,40 +35,44 @@ export default function MemberDetailModal() {
   > | null>(null)
   const isOpen = Boolean(memberId || showCreateMember)
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setMemberModalId(null)
     setShowCreateMember(false)
     setIsEditing(false)
-  }
+  }, [setMemberModalId, setShowCreateMember])
+
+  // Escape closes the detail view (not the form, to avoid losing edits)
+  useEffect(() => {
+    if (!isOpen || isEditing || showCreateMember) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeModal()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isOpen, isEditing, showCreateMember, closeModal])
 
   const fetchData = useCallback(
     async (id: string) => {
       setLoading(true)
       setError(null)
       try {
-        // 1. Fetch Person Public Data
-        const { data: personData, error: personError } = await supabase
-          .from('persons')
-          .select('*')
-          .eq('id', id)
-          .single()
+        // Public and (admin-only) private data are fetched in parallel
+        const [personRes, privateRes] = await Promise.all([
+          supabase.from('persons').select('*').eq('id', id).single(),
+          isAdmin
+            ? supabase
+                .from('person_details_private')
+                .select('*')
+                .eq('person_id', id)
+                .maybeSingle()
+            : Promise.resolve(null)
+        ])
 
-        if (personError || !personData) {
+        if (personRes.error || !personRes.data) {
           throw new Error(t('memberLoadError'))
         }
-        setPerson(personData)
-
-        // 2. Fetch Private Data if Admin
-        if (isAdmin) {
-          const { data: privData } = await supabase
-            .from('person_details_private')
-            .select('*')
-            .eq('person_id', id)
-            .single()
-          setPrivateData(privData || {})
-        } else {
-          setPrivateData(null)
-        }
+        setPerson(personRes.data)
+        setPrivateData(isAdmin ? privateRes?.data || {} : null)
       } catch (err) {
         console.error('Error fetching member details:', err)
         // @ts-expect-error - err is caught as unknown, but we check for message
@@ -158,7 +162,9 @@ export default function MemberDetailModal() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className='fixed inset-0 z-100 flex items-center justify-center bg-stone-900/40 p-4 backdrop-blur-sm sm:p-6'>
+          role='dialog'
+          aria-modal='true'
+          className='fixed inset-0 z-100 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm sm:p-6'>
           {/* Click-away backdrop (disabled while editing/creating to avoid accidental close) */}
           {!isEditing && !showCreateMember && (
             <div
@@ -175,7 +181,7 @@ export default function MemberDetailModal() {
             exit={{ scale: 0.96, opacity: 0, y: 15 }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
             layoutDependency={false}
-            className='relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white/95 backdrop-blur-2xl'>
+            className='relative flex h-full w-full max-w-4xl flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[90vh] sm:rounded-3xl sm:border sm:border-stone-200'>
             {/* Sticky Header Actions */}
             <div className='absolute top-4 right-4 z-20 flex items-center gap-2 sm:top-5 sm:right-5'>
               {isEditing ? (

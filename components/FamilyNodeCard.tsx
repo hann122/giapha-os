@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import { memo } from 'react'
 
 import { useMemberListView } from '@/context/MemberListContext'
 import { Person } from '@/types'
@@ -20,7 +21,7 @@ interface FamilyNodeCardProps {
   level: number
 }
 
-export default function FamilyNodeCard({
+function FamilyNodeCard({
   person,
   onClickCard,
   onClickName,
@@ -34,7 +35,7 @@ export default function FamilyNodeCard({
   const content = (
     <div
       onClick={onClickCard}
-      className={`group relative flex h-full flex-col items-center justify-start rounded-3xl px-1 py-2 transition-all duration-300 hover:-translate-y-1 ${isDeceased ? 'opacity-80 grayscale-[0.4]' : ''} ${showAvatar ? 'w-20 bg-surface/70 backdrop-blur-xl hover:shadow-soft-hover sm:w-24 md:w-28' : 'px-3'} `}>
+      className={`group relative flex h-full flex-col items-center justify-start rounded-3xl px-1 py-2 transition-[translate,box-shadow] duration-300 hover:-translate-y-1 ${isDeceased ? 'opacity-80 grayscale-[0.4]' : ''} ${showAvatar ? 'w-20 bg-surface hover:shadow-soft-hover sm:w-24 md:w-28' : 'px-3'} `}>
       {isRingVisible && (
         <div
           className={`absolute top-[15%] -left-2.5 z-100 flex size-5 items-center justify-center rounded-full text-sm font-medium text-stone-500 sm:-left-3.5 sm:size-6 sm:text-sm ${showAvatar ? 'bg-white shadow-sm' : ''} `}>
@@ -98,8 +99,13 @@ export default function FamilyNodeCard({
   }
 
   return (
-    <button onClick={() => setMemberModalId(person.id)} className='block w-fit'>
+    <button
+      type='button'
+      onClick={() => setMemberModalId(person.id)}
+      className='block w-fit rounded-3xl'>
       {content}
     </button>
   )
 }
+
+export default memo(FamilyNodeCard)

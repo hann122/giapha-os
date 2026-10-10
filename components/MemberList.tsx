@@ -1,12 +1,13 @@
 'use client'
 
-import { ArrowUpDown, Filter, Plus, Search } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { ArrowUpDown, Filter, Plus, Search, X } from 'lucide-react'
+import { useDeferredValue, useMemo, useState } from 'react'
 
 import PersonCard from '@/components/PersonCard'
 import { useMemberListView } from '@/context/MemberListContext'
 import { useI18n } from '@/lib/i18n/I18nProvider'
 import { Person, Relationship } from '@/types'
+import { normalizeSearchText } from '@/utils/search'
 
 export default function MemberList({
   initialPersons,
@@ -24,11 +25,40 @@ export default function MemberList({
 
   const [filterOption, setFilterOption] = useState('all')
 
+  // Typing stays responsive: filtering/sorting large lists runs at lower priority
+  const deferredSearchTerm = useDeferredValue(searchTerm)
+  const deferredFilterOption = useDeferredValue(filterOption)
+  const deferredSortOption = useDeferredValue(sortOption)
+  const isStale =
+    deferredSearchTerm !== searchTerm ||
+    deferredFilterOption !== filterOption ||
+    deferredSortOption !== sortOption
+
+  const personMap = useMemo(() => {
+    const map = new Map<string, Person>()
+    initialPersons.forEach((p) => map.set(p.id, p))
+    return map
+  }, [initialPersons])
+
+  // Accent-insensitive search index over full name and other names
+  const searchIndex = useMemo(() => {
+    const index = new Map<string, string>()
+    initialPersons.forEach((p) =>
+      index.set(
+        p.id,
+        normalizeSearchText(`${p.full_name} ${p.other_names ?? ''}`)
+      )
+    )
+    return index
+  }, [initialPersons])
+
   const filteredPersons = useMemo(() => {
+    const query = normalizeSearchText(deferredSearchTerm)
+    const filterOption = deferredFilterOption
+
     return initialPersons.filter((person) => {
-      const matchesSearch = person.full_name
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase())
+      const matchesSearch =
+        !query || (searchIndex.get(person.id) ?? '').includes(query)
 
       let matchesFilter = true
       switch (filterOption) {
@@ -58,7 +88,7 @@ export default function MemberList({
 
       return matchesSearch && matchesFilter
     })
-  }, [initialPersons, searchTerm, filterOption])
+  }, [initialPersons, searchIndex, deferredSearchTerm, deferredFilterOption])
 
   const { parentsOf, spousesOf } = useMemo(() => {
     const pOf = new Map<string, string[]>()
@@ -84,6 +114,7 @@ export default function MemberList({
   }, [relationships])
 
   const sortedPersons = useMemo(() => {
+    const sortOption = deferredSortOption
     // If not sorting by generation, use simple flat sort
     if (!sortOption.includes('generation')) {
       return [...filteredPersons].sort((a, b) => {
@@ -113,10 +144,6 @@ export default function MemberList({
     }
 
     // --- Complex Generation Sorting (Grouped by Family) ---
-    // 1. Build basic maps
-    const personMap = new Map<string, Person>()
-    initialPersons.forEach((p) => personMap.set(p.id, p))
-
     // 2. Determine "Family Groups" within the same generation
     // We group people if they share the same parents, OR if they are spouses
     // A family groupId will be derived from:
@@ -189,9 +216,16 @@ export default function MemberList({
       }
     }
 
+    const familyScores = new Map(
+      Array.from(families.entries()).map(([groupId, members]) => [
+        groupId,
+        getFamilyScore(groupId, members)
+      ])
+    )
+
     const sortedGroups = Array.from(families.entries()).sort((a, b) => {
-      const scoreA = getFamilyScore(a[0], a[1])
-      const scoreB = getFamilyScore(b[0], b[1])
+      const scoreA = familyScores.get(a[0])!
+      const scoreB = familyScores.get(b[0])!
 
       if (scoreA.parentBirthOrder !== scoreB.parentBirthOrder) {
         return scoreA.parentBirthOrder - scoreB.parentBirthOrder
@@ -265,7 +299,7 @@ export default function MemberList({
     })
 
     return finalSorted
-  }, [filteredPersons, sortOption, initialPersons, parentsOf, spousesOf])
+  }, [filteredPersons, deferredSortOption, personMap, parentsOf, spousesOf])
 
   return (
     <>
@@ -275,12 +309,26 @@ export default function MemberList({
             <div className='group relative max-w-sm flex-1'>
               <Search className='absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-stone-400 transition-colors group-focus-within:text-amber-500' />
               <input
-                type='text'
+                type='search'
                 placeholder={t('searchMembers')}
-                className='w-full rounded-xl border border-stone-200/80 bg-white/90 py-2.5 pr-4 pl-10 text-stone-900 placeholder-stone-400 transition-all focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 focus:outline-none'
+                aria-label={t('searchMembers')}
+                className='w-full rounded-xl border border-stone-200/80 bg-white/90 py-2.5 pr-10 pl-10 text-sm text-stone-900 placeholder-stone-400 transition-colors focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 focus:outline-none [&::-webkit-search-cancel-button]:appearance-none'
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setSearchTerm('')
+                }}
               />
+              {searchTerm && (
+                <button
+                  type='button'
+                  onClick={() => setSearchTerm('')}
+                  className='absolute top-1/2 right-2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-700'
+                  aria-label={t('clearSearch')}
+                  title={t('clearSearch')}>
+                  <X className='size-4' />
+                </button>
+              )}
             </div>
             <div className='flex w-full flex-col items-center gap-2 sm:w-auto sm:flex-row sm:gap-3'>
               <div className='relative w-full sm:w-auto'>
@@ -354,257 +402,308 @@ export default function MemberList({
         </div>
       </div>
 
-      {sortedPersons.length > 0 ? (
-        sortOption.includes('generation') ? (
-          <div className='space-y-12'>
-            {Object.entries(
-              sortedPersons.reduce(
-                (acc, person) => {
-                  const gen = person.generation || 0
-                  if (!acc[gen]) acc[gen] = []
-                  acc[gen].push(person)
-                  return acc
-                },
-                {} as Record<number, Person[]>
+      {(searchTerm || filterOption !== 'all') && (
+        <p
+          className='-mt-4 mb-6 px-1 text-sm text-stone-500'
+          aria-live='polite'>
+          {t('showingMembers', {
+            shown: filteredPersons.length,
+            total: initialPersons.length
+          })}
+        </p>
+      )}
+
+      <div
+        className={`transition-opacity duration-150 ${isStale ? 'opacity-60' : ''}`}>
+        {sortedPersons.length > 0 ? (
+          deferredSortOption.includes('generation') ? (
+            <div className='space-y-12'>
+              {Object.entries(
+                sortedPersons.reduce(
+                  (acc, person) => {
+                    const gen = person.generation || 0
+                    if (!acc[gen]) acc[gen] = []
+                    acc[gen].push(person)
+                    return acc
+                  },
+                  {} as Record<number, Person[]>
+                )
               )
-            )
-              .sort(([genA], [genB]) => {
-                if (sortOption === 'generation_desc') {
-                  return Number(genB) - Number(genA)
-                }
-                return Number(genA) - Number(genB)
-              })
-              .map(([gen, persons]) => {
-                const familiesMap = new Map<string, typeof persons>()
-                persons.forEach((p) => {
-                  const fid =
-                    (p as Person & { _familyId?: string })._familyId ||
-                    'unknown'
-                  if (!familiesMap.has(fid)) familiesMap.set(fid, [])
-                  familiesMap.get(fid)!.push(p)
+                .sort(([genA], [genB]) => {
+                  if (deferredSortOption === 'generation_desc') {
+                    return Number(genB) - Number(genA)
+                  }
+                  return Number(genA) - Number(genB)
                 })
+                .map(([gen, persons]) => {
+                  const familiesMap = new Map<string, typeof persons>()
+                  persons.forEach((p) => {
+                    const fid =
+                      (p as Person & { _familyId?: string })._familyId ||
+                      'unknown'
+                    if (!familiesMap.has(fid)) familiesMap.set(fid, [])
+                    familiesMap.get(fid)!.push(p)
+                  })
 
-                return (
-                  <div key={gen} className='space-y-6'>
-                    <div className='flex items-center gap-3'>
-                      <div className='h-px flex-1 bg-stone-200'></div>
-                      <h3 className='rounded-full border border-amber-200/50 bg-amber-50 px-4 py-1.5 font-serif text-lg font-semibold text-amber-800'>
-                        {gen === '0'
-                          ? t('unknownGeneration')
-                          : t('generationOf', { generation: gen })}
-                      </h3>
-                      <div className='h-px flex-1 bg-stone-200'></div>
-                    </div>
-                    <div className='space-y-12'>
-                      {Array.from(familiesMap.values()).map(
-                        (famPersons, idx) => (
-                          <div
-                            key={idx}
-                            className='relative rounded-[2.5rem] border border-stone-300 bg-white p-5 sm:p-8'>
-                            {(() => {
-                              const firstBloodline =
-                                famPersons.find((p) => !p.is_in_law) ||
-                                famPersons[0]
-                              const parentIds =
-                                parentsOf.get(firstBloodline.id) || []
-                              const parents = parentIds
-                                .map((id) =>
-                                  initialPersons.find((p) => p.id === id)
-                                )
-                                .filter(Boolean) as Person[]
-                              const parentNames = parents
-                                .map((p) =>
-                                  p.full_name
-                                    .trim()
-                                    .split(' ')
-                                    .splice(-2)
-                                    .join(' ')
-                                )
-                                .join(' & ')
-
-                              const label = parentNames
-                                ? t('childOf', { parents: parentNames })
-                                : familiesMap.size > 1
-                                  ? t('familyNumber', { number: idx + 1 })
-                                  : null
-
-                              if (!label) return null
-
-                              return (
-                                <div className='absolute -top-3 left-8 z-20 rounded-full border border-stone-300 bg-stone-100 px-3 py-0.5 text-sm font-medium text-stone-600'>
-                                  {label}
-                                </div>
-                              )
-                            })()}
+                  return (
+                    <div key={gen} className='space-y-6'>
+                      <div className='flex items-center gap-3'>
+                        <div className='h-px flex-1 bg-stone-200'></div>
+                        <h3 className='rounded-full border border-amber-200/50 bg-amber-50 px-4 py-1.5 font-serif text-lg font-semibold text-amber-800'>
+                          {gen === '0'
+                            ? t('unknownGeneration')
+                            : t('generationOf', { generation: gen })}
+                        </h3>
+                        <div className='h-px flex-1 bg-stone-200'></div>
+                      </div>
+                      <div className='space-y-9'>
+                        {Array.from(familiesMap.values()).map(
+                          (famPersons, idx) => (
+                            // Off-screen families skip rendering. The top padding keeps the
+                            // parent label (positioned above the card) inside the
+                            // paint-contained box so it isn't clipped.
                             <div
-                              className={`grid grid-cols-1 gap-x-6 gap-y-10 md:grid-cols-2 lg:grid-cols-3`}>
-                              {(() => {
-                                // Group famPersons into couple groups strictly by spouse relationships
-                                const coupleGroups: Person[][] = []
-                                const placed = new Set<string>()
-
-                                for (const p of famPersons) {
-                                  if (placed.has(p.id)) continue
-                                  const group = [p]
-                                  placed.add(p.id)
-
-                                  // Find all spouses connected to this person
-                                  const queue = [p.id]
-                                  while (queue.length > 0) {
-                                    const curr = queue.shift()!
-                                    const spIds = spousesOf.get(curr) || []
-                                    for (const spId of spIds) {
-                                      if (!placed.has(spId)) {
-                                        const spObj = famPersons.find(
-                                          (m) => m.id === spId
-                                        )
-                                        if (spObj) {
-                                          group.push(spObj)
-                                          placed.add(spId)
-                                          queue.push(spId)
-                                        }
-                                      }
-                                    }
-                                  }
-
-                                  // Balanced Sort: Place bloodline members in the center
-                                  // This ensures HUB -- SPOUSE links work best in a horizontal grid.
-                                  const bloodlineMembers = group
-                                    .filter((m) => !m.is_in_law)
-                                    .sort(
-                                      (a, b) =>
-                                        (a.birth_year || 0) -
-                                        (b.birth_year || 0)
+                              key={idx}
+                              className='pt-3 [contain-intrinsic-size:auto_480px] [content-visibility:auto]'>
+                              <div className='relative rounded-[2.5rem] border border-stone-300 bg-white p-5 sm:p-8'>
+                                {(() => {
+                                  const firstBloodline =
+                                    famPersons.find((p) => !p.is_in_law) ||
+                                    famPersons[0]
+                                  const parentIds =
+                                    parentsOf.get(firstBloodline.id) || []
+                                  const parents = parentIds
+                                    .map((id) => personMap.get(id))
+                                    .filter(Boolean) as Person[]
+                                  const parentNames = parents
+                                    .map((p) =>
+                                      p.full_name
+                                        .trim()
+                                        .split(' ')
+                                        .splice(-2)
+                                        .join(' ')
                                     )
-                                  const inLawMembers = group
-                                    .filter((m) => m.is_in_law)
-                                    .sort(
-                                      (a, b) =>
-                                        (a.birth_year || 0) -
-                                        (b.birth_year || 0)
-                                    )
+                                    .join(' & ')
 
-                                  const balanced: Person[] = []
-                                  if (group.length <= 2) {
-                                    balanced.push(
-                                      ...bloodlineMembers,
-                                      ...inLawMembers
-                                    )
-                                  } else {
-                                    // For 3+ people, put the main person(s) in the middle
-                                    // Example for 3: [InLaw 1, Bloodline, InLaw 2]
-                                    let bIdx = 0
-                                    let iIdx = 0
-                                    const slots = new Array(group.length)
+                                  const label = parentNames
+                                    ? t('childOf', { parents: parentNames })
+                                    : familiesMap.size > 1
+                                      ? t('familyNumber', { number: idx + 1 })
+                                      : null
 
-                                    // Put bloodline in center or near center
-                                    const mid = Math.floor(group.length / 2)
-                                    slots[mid] = bloodlineMembers[bIdx++]
-
-                                    // Distribute others around
-                                    let offset = 1
-                                    while (
-                                      bIdx < bloodlineMembers.length ||
-                                      iIdx < inLawMembers.length
-                                    ) {
-                                      const next =
-                                        bIdx < bloodlineMembers.length
-                                          ? bloodlineMembers[bIdx++]
-                                          : inLawMembers[iIdx++]
-                                      if (
-                                        mid + offset < group.length &&
-                                        !slots[mid + offset]
-                                      )
-                                        slots[mid + offset] = next
-                                      else if (
-                                        mid - offset >= 0 &&
-                                        !slots[mid - offset]
-                                      )
-                                        slots[mid - offset] = next
-                                      else {
-                                        // Find first empty slot
-                                        const empty = slots.findIndex((s) => !s)
-                                        if (empty !== -1) slots[empty] = next
-                                      }
-                                      offset++
-                                    }
-                                    balanced.push(...slots.filter((s) => !!s))
-                                  }
-
-                                  coupleGroups.push(balanced)
-                                }
-                                return coupleGroups.map((group, gIdx) => {
-                                  const isCouple = group.length > 1
-                                  const colSpanClass =
-                                    group.length === 2
-                                      ? 'md:col-span-2'
-                                      : group.length >= 3
-                                        ? 'md:col-span-2 lg:col-span-3'
-                                        : 'col-span-1'
-                                  const innerGridClass =
-                                    group.length === 2
-                                      ? 'md:grid-cols-2'
-                                      : group.length >= 3
-                                        ? 'md:grid-cols-2 lg:grid-cols-3'
-                                        : 'grid-cols-1'
+                                  if (!label) return null
 
                                   return (
-                                    <div
-                                      key={gIdx}
-                                      className={`relative ${colSpanClass}`}>
-                                      {isCouple && (
-                                        <>
-                                          {/* Desktop & Tablet background */}
-                                          <div className='absolute -inset-3 z-0 hidden rounded-4xl border border-amber-200/80 bg-amber-50/70 md:block lg:-inset-4'></div>
-                                          {/* Mobile background */}
-                                          <div className='absolute -inset-2 z-0 rounded-3xl border border-amber-200/80 bg-amber-50/70 md:hidden'></div>
-                                        </>
-                                      )}
-                                      <div
-                                        className={`relative z-10 grid grid-cols-1 ${innerGridClass} h-full gap-y-6 md:gap-x-6`}>
-                                        {group.map((person, pIdx) => (
-                                          <div
-                                            key={person.id}
-                                            className='relative flex h-full flex-col'>
-                                            <PersonCard person={person} />
-                                            {/* Visual link between spouses (desktop >= md) */}
-                                            {isCouple &&
-                                              pIdx < group.length - 1 && (
-                                                <div className='absolute top-[50%] -right-3 z-10 hidden h-0.5 w-6 translate-x-1/2 bg-amber-300 md:block'></div>
-                                              )}
-                                            {/* Visual link between spouses (mobile < md) */}
-                                            {isCouple &&
-                                              pIdx < group.length - 1 && (
-                                                <div className='absolute -bottom-6 left-1/2 z-10 h-6 w-0.5 -translate-x-1/2 bg-amber-300 md:hidden'></div>
-                                              )}
-                                          </div>
-                                        ))}
-                                      </div>
+                                    <div className='absolute -top-3 left-8 z-20 rounded-full border border-stone-300 bg-stone-100 px-3 py-0.5 text-sm font-medium text-stone-600'>
+                                      {label}
                                     </div>
                                   )
-                                })
-                              })()}
+                                })()}
+                                <div
+                                  className={`grid grid-cols-1 gap-x-6 gap-y-10 md:grid-cols-2 lg:grid-cols-3`}>
+                                  {(() => {
+                                    // Group famPersons into couple groups strictly by spouse relationships
+                                    const coupleGroups: Person[][] = []
+                                    const placed = new Set<string>()
+
+                                    for (const p of famPersons) {
+                                      if (placed.has(p.id)) continue
+                                      const group = [p]
+                                      placed.add(p.id)
+
+                                      // Find all spouses connected to this person
+                                      const queue = [p.id]
+                                      while (queue.length > 0) {
+                                        const curr = queue.shift()!
+                                        const spIds = spousesOf.get(curr) || []
+                                        for (const spId of spIds) {
+                                          if (!placed.has(spId)) {
+                                            const spObj = famPersons.find(
+                                              (m) => m.id === spId
+                                            )
+                                            if (spObj) {
+                                              group.push(spObj)
+                                              placed.add(spId)
+                                              queue.push(spId)
+                                            }
+                                          }
+                                        }
+                                      }
+
+                                      // Balanced Sort: Place bloodline members in the center
+                                      // This ensures HUB -- SPOUSE links work best in a horizontal grid.
+                                      const bloodlineMembers = group
+                                        .filter((m) => !m.is_in_law)
+                                        .sort(
+                                          (a, b) =>
+                                            (a.birth_year || 0) -
+                                            (b.birth_year || 0)
+                                        )
+                                      const inLawMembers = group
+                                        .filter((m) => m.is_in_law)
+                                        .sort(
+                                          (a, b) =>
+                                            (a.birth_year || 0) -
+                                            (b.birth_year || 0)
+                                        )
+
+                                      const balanced: Person[] = []
+                                      if (group.length <= 2) {
+                                        balanced.push(
+                                          ...bloodlineMembers,
+                                          ...inLawMembers
+                                        )
+                                      } else {
+                                        // For 3+ people, put the main person(s) in the middle
+                                        // Example for 3: [InLaw 1, Bloodline, InLaw 2]
+                                        let bIdx = 0
+                                        let iIdx = 0
+                                        const slots = new Array(group.length)
+
+                                        // Put bloodline in center or near center
+                                        const mid = Math.floor(group.length / 2)
+                                        slots[mid] = bloodlineMembers[bIdx++]
+
+                                        // Distribute others around
+                                        let offset = 1
+                                        while (
+                                          bIdx < bloodlineMembers.length ||
+                                          iIdx < inLawMembers.length
+                                        ) {
+                                          const next =
+                                            bIdx < bloodlineMembers.length
+                                              ? bloodlineMembers[bIdx++]
+                                              : inLawMembers[iIdx++]
+                                          if (
+                                            mid + offset < group.length &&
+                                            !slots[mid + offset]
+                                          )
+                                            slots[mid + offset] = next
+                                          else if (
+                                            mid - offset >= 0 &&
+                                            !slots[mid - offset]
+                                          )
+                                            slots[mid - offset] = next
+                                          else {
+                                            // Find first empty slot
+                                            const empty = slots.findIndex(
+                                              (s) => !s
+                                            )
+                                            if (empty !== -1)
+                                              slots[empty] = next
+                                          }
+                                          offset++
+                                        }
+                                        balanced.push(
+                                          ...slots.filter((s) => !!s)
+                                        )
+                                      }
+
+                                      coupleGroups.push(balanced)
+                                    }
+                                    return coupleGroups.map((group, gIdx) => {
+                                      const isCouple = group.length > 1
+                                      const colSpanClass =
+                                        group.length === 2
+                                          ? 'md:col-span-2'
+                                          : group.length >= 3
+                                            ? 'md:col-span-2 lg:col-span-3'
+                                            : 'col-span-1'
+                                      const innerGridClass =
+                                        group.length === 2
+                                          ? 'md:grid-cols-2'
+                                          : group.length >= 3
+                                            ? 'md:grid-cols-2 lg:grid-cols-3'
+                                            : 'grid-cols-1'
+
+                                      return (
+                                        <div
+                                          key={gIdx}
+                                          className={`relative ${colSpanClass}`}>
+                                          {isCouple && (
+                                            <>
+                                              {/* Desktop & Tablet background */}
+                                              <div className='absolute -inset-3 z-0 hidden rounded-4xl border border-amber-200/80 bg-amber-50/70 md:block lg:-inset-4'></div>
+                                              {/* Mobile background */}
+                                              <div className='absolute -inset-2 z-0 rounded-3xl border border-amber-200/80 bg-amber-50/70 md:hidden'></div>
+                                            </>
+                                          )}
+                                          <div
+                                            className={`relative z-10 grid grid-cols-1 ${innerGridClass} h-full gap-y-6 md:gap-x-6`}>
+                                            {group.map((person, pIdx) => (
+                                              <div
+                                                key={person.id}
+                                                className='relative flex h-full flex-col'>
+                                                <PersonCard person={person} />
+                                                {/* Visual link between spouses (desktop >= md) */}
+                                                {isCouple &&
+                                                  pIdx < group.length - 1 && (
+                                                    <div className='absolute top-[50%] -right-3 z-10 hidden h-0.5 w-6 translate-x-1/2 bg-amber-300 md:block'></div>
+                                                  )}
+                                                {/* Visual link between spouses (mobile < md) */}
+                                                {isCouple &&
+                                                  pIdx < group.length - 1 && (
+                                                    <div className='absolute -bottom-6 left-1/2 z-10 h-6 w-0.5 -translate-x-1/2 bg-amber-300 md:hidden'></div>
+                                                  )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )
+                                    })
+                                  })()}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        )
-                      )}
+                          )
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
-          </div>
+                  )
+                })}
+            </div>
+          ) : (
+            <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
+              {sortedPersons.map((person) => (
+                <div
+                  key={person.id}
+                  className='[contain-intrinsic-size:auto_120px] [content-visibility:auto]'>
+                  <PersonCard person={person} />
+                </div>
+              ))}
+            </div>
+          )
         ) : (
-          <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
-            {sortedPersons.map((person) => (
-              <PersonCard key={person.id} person={person} />
-            ))}
+          <div className='flex flex-col items-center gap-3 py-12 text-center'>
+            <p className='text-sm text-stone-500'>
+              {initialPersons.length > 0
+                ? t('noMatchingMembers')
+                : t('noMembers')}
+            </p>
+            {initialPersons.length > 0 &&
+              (searchTerm || filterOption !== 'all') && (
+                <button
+                  type='button'
+                  onClick={() => {
+                    setSearchTerm('')
+                    setFilterOption('all')
+                  }}
+                  className='btn'>
+                  {t('clearFilters')}
+                </button>
+              )}
+            {initialPersons.length === 0 && canEdit && (
+              <button
+                type='button'
+                onClick={() => setShowCreateMember(true)}
+                className='btn-primary'>
+                <Plus className='size-4' strokeWidth={2.5} />
+                {t('addMember')}
+              </button>
+            )}
           </div>
-        )
-      ) : (
-        <div className='py-12 text-center text-stone-400 italic'>
-          {initialPersons.length > 0 ? t('noMatchingMembers') : t('noMembers')}
-        </div>
-      )}
+        )}
+      </div>
     </>
   )
 }

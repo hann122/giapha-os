@@ -43,9 +43,13 @@ export default function MindmapTree({
     ts: number
   } | null>(null)
 
-  const ctx: MindmapContextData = useMemo(() => {
-    const adj = buildAdjacencyLists(relationships, personsMap)
+  // Adjacency lists only depend on the data, not on the view filters
+  const adj = useMemo(
+    () => buildAdjacencyLists(relationships, personsMap),
+    [relationships, personsMap]
+  )
 
+  const ctx: MindmapContextData = useMemo(() => {
     return {
       personsMap,
       relationships,
@@ -65,6 +69,7 @@ export default function MindmapTree({
   }, [
     personsMap,
     relationships,
+    adj,
     hideDaughtersInLaw,
     hideSonsInLaw,
     hideDaughters,

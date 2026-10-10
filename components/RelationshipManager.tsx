@@ -114,15 +114,17 @@ export default function RelationshipManager({
     try {
       // Get all relationships where this person involved
       // This is a bit complex because we need to check both a and b columns
-      const { data: relsA, error: errA } = await supabase
-        .from('relationships')
-        .select(`*, target:persons!person_b(*)`) // if I am A, target is B
-        .eq('person_a', personId)
-
-      const { data: relsB, error: errB } = await supabase
-        .from('relationships')
-        .select(`*, target:persons!person_a(*)`) // if I am B, target is A
-        .eq('person_b', personId)
+      const [{ data: relsA, error: errA }, { data: relsB, error: errB }] =
+        await Promise.all([
+          supabase
+            .from('relationships')
+            .select(`*, target:persons!person_b(*)`) // if I am A, target is B
+            .eq('person_a', personId),
+          supabase
+            .from('relationships')
+            .select(`*, target:persons!person_a(*)`) // if I am B, target is A
+            .eq('person_b', personId)
+        ])
 
       if (errA || errB) throw errA || errB
 

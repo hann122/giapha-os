@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import { memo } from 'react'
 
 import { useMemberListView } from '@/context/MemberListContext'
 import { useI18n } from '@/lib/i18n/I18nProvider'
@@ -15,7 +16,7 @@ interface PersonCardProps {
   person: Person
 }
 
-export default function PersonCard({ person }: PersonCardProps) {
+function PersonCard({ person }: PersonCardProps) {
   const { t } = useI18n()
   const { setMemberModalId } = useMemberListView()
 
@@ -29,8 +30,9 @@ export default function PersonCard({ person }: PersonCardProps) {
 
   return (
     <button
+      type='button'
       onClick={() => setMemberModalId(person.id)}
-      className={`group relative block overflow-hidden rounded-3xl border border-border bg-white/60 p-2 transition-all duration-300 hover:-translate-y-1 hover:border-tertiary hover:bg-surface/90 sm:p-4 ${isDeceased ? 'grayscalePer-[0.3] opacity-80' : ''}`}>
+      className={`group relative block overflow-hidden rounded-3xl border border-border bg-white/60 p-2 transition-all duration-300 hover:-translate-y-1 hover:border-tertiary hover:bg-surface/90 sm:p-4 ${isDeceased ? 'opacity-80 grayscale-[0.3]' : ''}`}>
       {/* Decorative gradient blob */}
       {/* <div
         className={`absolute -right-10 -top-10 w-32 h-32 rounded-full blur-[50px] opacity-20 transition-all duration-500 group-hover:opacity-40 group-hover:scale-125 ${person.gender === "male" ? "bg-sky-400" : person.gender === "female" ? "bg-rose-400" : "bg-stone-400"}`}
@@ -132,3 +134,5 @@ export default function PersonCard({ person }: PersonCardProps) {
     </button>
   )
 }
+
+export default memo(PersonCard)

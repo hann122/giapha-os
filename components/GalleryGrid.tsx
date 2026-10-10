@@ -21,7 +21,7 @@ interface GalleryGridProps {
 export default function GalleryGrid({
   items,
   isAdmin,
-  viewMode = 'grid',
+  viewMode = 'timeline',
   onEdit,
   onDeleteSuccess
 }: GalleryGridProps) {

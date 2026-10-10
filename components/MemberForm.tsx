@@ -15,12 +15,13 @@ import {
 } from 'lucide-react'
 import { Lunar, Solar } from 'lunar-javascript'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { updateDescendantGenerationsAction } from '@/app/actions/member'
 import { useI18n } from '@/lib/i18n/I18nProvider'
 import { Gender, Person } from '@/types'
 import { getAvatarStoragePath, getAvatarUrl } from '@/utils/avatar'
+import { resizeAvatar } from '@/utils/image'
 import { createClient } from '@/utils/supabase/client'
 
 interface MemberFormProps {
@@ -110,6 +111,25 @@ export default function MemberForm({
   )
 
   const [note, setNote] = useState(initialData?.note || '')
+  // Existing photo is only deleted from storage once the form is saved,
+  // so cancelling after "Remove photo" doesn't leave a broken avatar.
+  const [removeExistingAvatar, setRemoveExistingAvatar] = useState(false)
+  const [processingAvatar, setProcessingAvatar] = useState(false)
+  const errorRef = useRef<HTMLDivElement>(null)
+
+  // Bring validation/save errors into view on long forms
+  useEffect(() => {
+    if (error) {
+      errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [error])
+
+  // Release preview object URLs
+  useEffect(() => {
+    return () => {
+      if (avatarPreview?.startsWith('blob:')) URL.revokeObjectURL(avatarPreview)
+    }
+  }, [avatarPreview])
 
   // Private fields
   const [phoneNumber, setPhoneNumber] = useState(
@@ -381,6 +401,20 @@ export default function MemberForm({
           .update({ avatar_url: currentAvatarUrl })
           .eq('id', currentPersonId)
         if (updateAvatarError) throw updateAvatarError
+      }
+
+      // Delete the previous photo from storage only after a successful save
+      if (removeExistingAvatar && initialData?.avatar_url) {
+        const filePath = getAvatarStoragePath(initialData.avatar_url)
+        const replacedSameFile = filePath && filePath === currentAvatarUrl
+        if (filePath && !replacedSameFile) {
+          const { error: removeError } = await supabase.storage
+            .from('avatars')
+            .remove([filePath])
+          if (removeError) {
+            console.error('Error removing avatar from storage:', removeError)
+          }
+        }
       }
 
       // 3. Upsert private data (only if admin and currentPersonId exists)
@@ -672,8 +706,10 @@ export default function MemberForm({
                     <input
                       type='file'
                       accept='image/*'
-                      onChange={(e) => {
+                      disabled={processingAvatar}
+                      onChange={async (e) => {
                         const file = e.target.files?.[0]
+                        e.target.value = ''
                         if (file) {
                           if (
                             ![
@@ -686,12 +722,23 @@ export default function MemberForm({
                             setError(t('invalidImageType'))
                             return
                           }
-                          if (file.size > 2 * 1024 * 1024) {
+                          if (file.size > 20 * 1024 * 1024) {
                             setError(t('imageTooLarge'))
                             return
                           }
-                          setAvatarFile(file)
-                          setAvatarPreview(URL.createObjectURL(file))
+                          setError(null)
+                          setProcessingAvatar(true)
+                          const resized = await resizeAvatar(file)
+                          setProcessingAvatar(false)
+                          if (resized.size > 2 * 1024 * 1024) {
+                            setError(t('imageTooLarge'))
+                            return
+                          }
+                          if (initialData?.avatar_url) {
+                            setRemoveExistingAvatar(true)
+                          }
+                          setAvatarFile(resized)
+                          setAvatarPreview(URL.createObjectURL(resized))
                         }
                       }}
                       className='absolute inset-0 h-full w-full opacity-0'
@@ -699,43 +746,21 @@ export default function MemberForm({
                     <button
                       type='button'
                       className='flex items-center gap-2 rounded-lg border border-amber-200/50 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 transition-colors hover:border-amber-300 hover:bg-amber-100'>
-                      <ImageIcon className='size-4' />
+                      {processingAvatar ? (
+                        <Loader2 className='size-4 animate-spin' />
+                      ) : (
+                        <ImageIcon className='size-4' />
+                      )}
                       {t('chooseNewPhoto')}
                     </button>
                   </div>
                   {avatarPreview && (
                     <button
                       type='button'
-                      onClick={async () => {
-                        // If there is an existing URL from Supabase, try to extract the file path to delete it
-                        if (
-                          initialData?.avatar_url &&
-                          avatarUrl === initialData.avatar_url
-                        ) {
-                          try {
-                            const filePath = getAvatarStoragePath(
-                              initialData.avatar_url
-                            )
-                            if (filePath) {
-                              const { error: removeError } =
-                                await supabase.storage
-                                  .from('avatars')
-                                  .remove([filePath])
-                              if (removeError) {
-                                console.error(
-                                  'Error removing avatar from storage:',
-                                  removeError
-                                )
-                              }
-                            }
-                          } catch (err) {
-                            console.error(
-                              'Failed to parse avatar URL for deletion',
-                              err
-                            )
-                          }
+                      onClick={() => {
+                        if (initialData?.avatar_url) {
+                          setRemoveExistingAvatar(true)
                         }
-
                         setAvatarUrl('')
                         setAvatarFile(null)
                         setAvatarPreview(null)
@@ -1024,6 +1049,8 @@ export default function MemberForm({
       <AnimatePresence>
         {error && (
           <motion.div
+            ref={errorRef}
+            role='alert'
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
@@ -1046,7 +1073,10 @@ export default function MemberForm({
           className='btn'>
           {t('cancel')}
         </button>
-        <button type='submit' disabled={loading} className='btn-primary'>
+        <button
+          type='submit'
+          disabled={loading || processingAvatar}
+          className='btn-primary disabled:pointer-events-none disabled:opacity-60'>
           {loading && <Loader2 className='size-4 animate-spin' />}
           {loading
             ? t('saving')

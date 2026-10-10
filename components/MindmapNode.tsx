@@ -111,8 +111,10 @@ export const MindmapNode = memo(
             {hasChildren && !ctx.hideExpandButtons ? (
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className='flex size-5 items-center justify-center rounded border border-stone-200 bg-white text-stone-500 transition-colors hover:bg-amber-50 hover:text-amber-600 focus:outline-none'
-                aria-label={isExpanded ? t('collapse') : t('expand')}>
+                type='button'
+                className='flex size-5 items-center justify-center rounded border border-stone-200 bg-white text-stone-500 transition-colors hover:bg-amber-50 hover:text-amber-600'
+                aria-label={isExpanded ? t('collapse') : t('expand')}
+                aria-expanded={isExpanded}>
                 {isExpanded ? (
                   <ChevronDown strokeWidth={2.5} className='h-3.5 w-3.5' />
                 ) : (
@@ -126,10 +128,16 @@ export const MindmapNode = memo(
 
           {(() => {
             return (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3 }}
+              <div
+                role='button'
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    ctx.setMemberModalId(data.person.id)
+                  }
+                }}
                 className={`group/card relative flex cursor-pointer flex-wrap items-center gap-2 overflow-hidden rounded-2xl border border-stone-200/60 bg-white/60 p-2 transition-all duration-300 hover:border-amber-300 hover:bg-white/90 sm:p-2.5 ${data.person.is_deceased ? 'opacity-80 grayscale-[0.3]' : ''}`}
                 onClick={() => ctx.setMemberModalId(data.person.id)}>
                 <div className='relative z-10 flex w-full items-center gap-2.5'>
@@ -251,7 +259,7 @@ export const MindmapNode = memo(
                     </div>
                   )}
                 </div>
-              </motion.div>
+              </div>
             )
           })()}
         </div>
