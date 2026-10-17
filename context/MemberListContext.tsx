@@ -1,29 +1,11 @@
 'use client'
 
 import { useSearchParams } from 'next/navigation'
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState
-} from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ViewMode } from '@/components/ViewToggle'
 
-interface MemberListViewState {
-  memberModalId: string | null
-  setMemberModalId: (id: string | null) => void
-  showCreateMember: boolean
-  setShowCreateMember: (show: boolean) => void
-  showAvatar: boolean
-  setShowAvatar: (show: boolean) => void
-  view: ViewMode
-  setView: (view: ViewMode) => void
-  rootId: string | null
-  setRootId: (id: string | null) => void
-}
+import { MemberListContext, MemberListViewState } from './memberListViewContext'
 
 function setUrlParam(key: string, value: string | null) {
   if (typeof window === 'undefined') return
@@ -35,10 +17,6 @@ function setUrlParam(key: string, value: string | null) {
   }
   window.history.replaceState(null, '', newUrl.toString())
 }
-
-export const MemberListContext = createContext<MemberListViewState | undefined>(
-  undefined
-)
 
 export function MemberListProvider({
   children,
@@ -144,25 +122,4 @@ export function MemberListProvider({
       {children}
     </MemberListContext.Provider>
   )
-}
-
-export function useMemberListView(): MemberListViewState {
-  const context = useContext(MemberListContext)
-  // Return a safe no-op fallback when used outside MemberListProvider
-  // (e.g., on the /dashboard/members/[id] standalone page)
-  if (context === undefined) {
-    return {
-      memberModalId: null,
-      setMemberModalId: () => {},
-      showCreateMember: false,
-      setShowCreateMember: () => {},
-      showAvatar: true,
-      setShowAvatar: () => {},
-      view: 'list',
-      setView: () => {},
-      rootId: null,
-      setRootId: () => {}
-    }
-  }
-  return context
 }

@@ -10,8 +10,10 @@ export async function generateMetadata() {
 }
 
 export default async function StatsPage() {
-  const { t } = await getServerTranslations()
-  const supabase = await getSupabase()
+  const [{ t }, supabase] = await Promise.all([
+    getServerTranslations(),
+    getSupabase()
+  ])
 
   const [{ data: persons }, { data: relationships }] = await Promise.all([
     fetchAllRows((from, to) =>

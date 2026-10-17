@@ -4,7 +4,7 @@ import { Clock, LayoutGrid, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
-import { useI18n } from '@/lib/i18n/I18nProvider'
+import { useI18n } from '@/lib/i18n/useI18n'
 import { GalleryItem } from '@/types'
 
 import GalleryGrid from './GalleryGrid'
@@ -63,7 +63,7 @@ export default function GalleryClient({
           <div className='flex items-center rounded-xl border border-stone-200/60 bg-stone-100 p-1'>
             <button
               onClick={() => setViewMode('timeline')}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                 viewMode === 'timeline'
                   ? 'bg-white text-stone-900 shadow-xs'
                   : 'text-stone-500 hover:text-stone-800'
@@ -74,7 +74,7 @@ export default function GalleryClient({
             </button>
             <button
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                 viewMode === 'grid'
                   ? 'bg-white text-stone-900 shadow-xs'
                   : 'text-stone-500 hover:text-stone-800'

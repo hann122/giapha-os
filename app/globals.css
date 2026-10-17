@@ -73,20 +73,20 @@ select {
 
 /* Design system buttons */
 .btn-primary {
-  @apply inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-4 text-sm font-medium text-surface transition-all duration-300 hover:-translate-y-1 hover:bg-[#292524] hover:shadow-soft-hover;
+  @apply inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-4 text-sm font-medium text-surface transition duration-300 hover:-translate-y-1 hover:bg-[#292524] hover:shadow-soft-hover;
 }
 
 .btn-amber {
-  @apply inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-tertiary px-3 py-2.5 text-sm font-medium text-primary transition-all duration-300 hover:-translate-y-1 hover:shadow-soft-hover;
+  @apply inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-tertiary px-3 py-2.5 text-sm font-medium text-primary transition duration-300 hover:-translate-y-1 hover:shadow-soft-hover;
 }
 
 .btn-outline,
 .btn {
-  @apply inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-border bg-transparent px-4 py-4 text-sm font-medium text-secondary transition-all duration-300 hover:-translate-y-1 hover:bg-neutral;
+  @apply inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-border bg-transparent px-4 py-4 text-sm font-medium text-secondary transition-colors duration-300 hover:-translate-y-1 hover:bg-neutral;
 }
 
 .btn-secondary {
-  @apply inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-secondary px-4 py-4 text-sm font-medium text-surface transition-all duration-300 hover:-translate-y-1 hover:bg-stone-700 hover:shadow-soft-hover;
+  @apply inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-secondary px-4 py-4 text-sm font-medium text-surface transition duration-300 hover:-translate-y-1 hover:bg-stone-700 hover:shadow-soft-hover;
 }
 
 .badge-error {
@@ -94,7 +94,7 @@ select {
 }
 
 .card-feature {
-  @apply rounded-3xl bg-white/70 p-[32px] shadow-soft backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-soft-hover;
+  @apply rounded-3xl bg-white/70 p-[32px] shadow-soft backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:shadow-soft-hover;
 }
 
 .title {

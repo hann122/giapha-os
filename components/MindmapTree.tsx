@@ -3,8 +3,8 @@
 import { Share2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
-import { useMemberListView } from '@/context/MemberListContext'
-import { useI18n } from '@/lib/i18n/I18nProvider'
+import { useMemberListView } from '@/context/useMemberListView'
+import { useI18n } from '@/lib/i18n/useI18n'
 import { Person, Relationship } from '@/types'
 import { buildAdjacencyLists } from '@/utils/treeHelpers'
 

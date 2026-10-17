@@ -251,8 +251,10 @@ function sanitizeCustomEvent(
 export async function exportData(
   exportRootId?: string
 ): Promise<BackupPayload | { error: string }> {
-  const { t } = await getServerTranslations()
-  const isAdmin = await getIsAdmin()
+  const [{ t }, isAdmin] = await Promise.all([
+    getServerTranslations(),
+    getIsAdmin()
+  ])
   if (!isAdmin) {
     return { error: t('dataAccessDenied') }
   }
@@ -330,13 +332,17 @@ export async function exportData(
 
     exportRels.forEach((r) => {
       if (r.type === 'biological_child' || r.type === 'adopted_child') {
-        if (!childrenMap.has(r.person_a)) childrenMap.set(r.person_a, [])
-        childrenMap.get(r.person_a)!.push(r.person_b)
+        const children = childrenMap.get(r.person_a) ?? []
+        children.push(r.person_b)
+        childrenMap.set(r.person_a, children)
       } else if (r.type === 'marriage') {
-        if (!spouseMap.has(r.person_a)) spouseMap.set(r.person_a, [])
-        if (!spouseMap.has(r.person_b)) spouseMap.set(r.person_b, [])
-        spouseMap.get(r.person_a)!.push(r.person_b)
-        spouseMap.get(r.person_b)!.push(r.person_a)
+        const spousesA = spouseMap.get(r.person_a) ?? []
+        spousesA.push(r.person_b)
+        spouseMap.set(r.person_a, spousesA)
+
+        const spousesB = spouseMap.get(r.person_b) ?? []
+        spousesB.push(r.person_a)
+        spouseMap.set(r.person_b, spousesB)
       }
     })
 
@@ -395,8 +401,10 @@ export async function importData(
         custom_events?: CustomEventExport[]
       }
 ) {
-  const { t } = await getServerTranslations()
-  const isAdmin = await getIsAdmin()
+  const [{ t }, isAdmin] = await Promise.all([
+    getServerTranslations(),
+    getIsAdmin()
+  ])
   if (!isAdmin) {
     return { error: t('dataAccessDenied') }
   }

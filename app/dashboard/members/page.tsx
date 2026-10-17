@@ -1,3 +1,5 @@
+import { Suspense } from 'react'
+
 import MembersViews from '@/components/MembersViews'
 import MemberDetailModal from '@/components/modal/MemberDetailModal'
 import ViewToggle, { ViewMode } from '@/components/ViewToggle'
@@ -66,18 +68,20 @@ export default async function FamilyTreePage({ searchParams }: PageProps) {
   }
 
   return (
-    <MemberListProvider
-      initialView={initialView}
-      initialRootId={finalRootId}
-      initialShowAvatar={initialShowAvatar}>
-      <ViewToggle />
-      <MembersViews
-        persons={persons}
-        relationships={relationships}
-        canEdit={canEdit}
-      />
+    <Suspense fallback={null}>
+      <MemberListProvider
+        initialView={initialView}
+        initialRootId={finalRootId}
+        initialShowAvatar={initialShowAvatar}>
+        <ViewToggle />
+        <MembersViews
+          persons={persons}
+          relationships={relationships}
+          canEdit={canEdit}
+        />
 
-      <MemberDetailModal />
-    </MemberListProvider>
+        <MemberDetailModal />
+      </MemberListProvider>
+    </Suspense>
   )
 }

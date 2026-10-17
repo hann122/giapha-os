@@ -1,3 +1,5 @@
+import { Suspense } from 'react'
+
 import EventsList from '@/components/EventsList'
 import MemberDetailModal from '@/components/modal/MemberDetailModal'
 import { MemberListProvider } from '@/context/MemberListContext'
@@ -11,8 +13,10 @@ export async function generateMetadata() {
 }
 
 export default async function EventsPage() {
-  const { t } = await getServerTranslations()
-  const supabase = await getSupabase()
+  const [{ t }, supabase] = await Promise.all([
+    getServerTranslations(),
+    getSupabase()
+  ])
 
   const [personsRes, customEventsRes] = await Promise.all([
     fetchAllRows((from, to) =>
@@ -37,25 +41,27 @@ export default async function EventsPage() {
   const customEvents = customEventsRes.data || []
 
   return (
-    <MemberListProvider>
-      <div className='relative flex w-full flex-1 flex-col pb-12'>
-        <div className='relative z-20 mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 lg:px-8'>
-          <h1 className='title'>{t('eventsTitle')}</h1>
-          <p className='mt-1 text-sm text-stone-500'>
-            {t('eventsDescription')}
-          </p>
+    <Suspense fallback={null}>
+      <MemberListProvider>
+        <div className='relative flex w-full flex-1 flex-col pb-12'>
+          <div className='relative z-20 mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 lg:px-8'>
+            <h1 className='title'>{t('eventsTitle')}</h1>
+            <p className='mt-1 text-sm text-stone-500'>
+              {t('eventsDescription')}
+            </p>
+          </div>
+
+          <main className='mx-auto w-full max-w-3xl flex-1 px-4 sm:px-6 lg:px-8'>
+            <EventsList
+              persons={persons ?? []}
+              customEvents={customEvents ?? []}
+            />
+          </main>
         </div>
 
-        <main className='mx-auto w-full max-w-3xl flex-1 px-4 sm:px-6 lg:px-8'>
-          <EventsList
-            persons={persons ?? []}
-            customEvents={customEvents ?? []}
-          />
-        </main>
-      </div>
-
-      {/* Modal for member details when clicking an event card */}
-      <MemberDetailModal />
-    </MemberListProvider>
+        {/* Modal for member details when clicking an event card */}
+        <MemberDetailModal />
+      </MemberListProvider>
+    </Suspense>
   )
 }

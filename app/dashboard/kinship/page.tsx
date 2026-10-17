@@ -1,3 +1,5 @@
+import { Suspense } from 'react'
+
 import KinshipFinder from '@/components/KinshipFinder'
 import { getServerTranslations } from '@/lib/i18n/server'
 import { fetchAllRows } from '@/utils/supabase/fetchAll'
@@ -9,8 +11,10 @@ export async function generateMetadata() {
 }
 
 export default async function KinshipPage() {
-  const { t } = await getServerTranslations()
-  const supabase = await getSupabase()
+  const [{ t }, supabase] = await Promise.all([
+    getServerTranslations(),
+    getSupabase()
+  ])
 
   const [{ data: persons }, { data: relationships }] = await Promise.all([
     fetchAllRows((from, to) =>
@@ -42,10 +46,12 @@ export default async function KinshipPage() {
       </div>
 
       <main className='mx-auto w-full max-w-3xl flex-1 px-4 sm:px-6 lg:px-8'>
-        <KinshipFinder
-          persons={persons ?? []}
-          relationships={relationships ?? []}
-        />
+        <Suspense fallback={null}>
+          <KinshipFinder
+            persons={persons ?? []}
+            relationships={relationships ?? []}
+          />
+        </Suspense>
       </main>
     </div>
   )
