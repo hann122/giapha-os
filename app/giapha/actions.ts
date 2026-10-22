@@ -148,5 +148,5 @@ export async function enterWithNameAndBirthYear(
   }
 
   failures.delete(ip)
-  redirect('/dashboard')
+  redirect('/dashboard/members')
 }

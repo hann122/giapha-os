@@ -102,7 +102,7 @@ export default function LoginPage() {
         if (error) {
           setError(error.message)
         } else {
-          router.push('/dashboard')
+          router.push('/dashboard/members')
           router.refresh()
         }
       } else {
@@ -134,7 +134,7 @@ export default function LoginPage() {
           setError(error.message)
         } else {
           if (data.session) {
-            router.push('/dashboard')
+            router.push('/dashboard/members')
             router.refresh()
           } else {
             // Attempt to sign in immediately (catches auto-confirmed first admin)
@@ -145,7 +145,7 @@ export default function LoginPage() {
               })
 
             if (!signInError && signInData.session) {
-              router.push('/dashboard')
+              router.push('/dashboard/members')
               router.refresh()
             } else {
               setSuccessMessage(t('signupSuccess'))
