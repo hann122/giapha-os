@@ -40,7 +40,7 @@ export function MemberListProvider({
     () => initialShowAvatar ?? searchParams.get('avatar') !== 'hide'
   )
   const [view, setViewState] = useState<ViewMode>(
-    () => initialView ?? (searchParams.get('view') as ViewMode | null) ?? 'list'
+    () => initialView ?? (searchParams.get('view') as ViewMode | null) ?? 'tree'
   )
   const [rootId, setRootIdState] = useState<string | null>(
     () => initialRootId ?? searchParams.get('rootId') ?? null
