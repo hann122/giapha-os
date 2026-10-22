@@ -86,7 +86,7 @@ export default function LandingHero({ siteName }: LandingHeroProps) {
           </span>
         </Link>
         <Link
-          href='/vao-xem'
+          href='/giapha'
           className='group relative inline-flex w-full items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white/80 px-8 py-4 text-sm font-medium text-stone-800 transition duration-300 hover:-translate-y-1 hover:bg-white active:translate-y-0 sm:w-auto sm:px-10 sm:py-5'>
           <span className='relative z-10 flex items-center gap-3'>
             Vào xem gia phả (không cần tài khoản)

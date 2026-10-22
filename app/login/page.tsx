@@ -286,7 +286,7 @@ export default function LoginPage() {
               />
 
               <Link
-                href='/vao-xem'
+                href='/giapha'
                 className='text-center text-sm font-medium text-amber-700 underline decoration-amber-400 underline-offset-2 transition-colors hover:text-amber-800'>
                 Người thân vào xem gia phả bằng họ tên + năm sinh
               </Link>
