@@ -3,11 +3,18 @@ import { Person, Relationship } from '@/types'
 export interface SpouseData {
   person: Person
   note?: string | null
+  createdAt?: string | null
 }
 
 export interface AdjacencyLists {
   spousesByPersonId: Map<string, SpouseData[]>
   childrenByPersonId: Map<string, Person[]>
+  parentsByChildId: Map<string, string[]>
+}
+
+export interface ChildGroup {
+  spouse: Person | null
+  children: Person[]
 }
 
 export interface TreeFilterOptions {
@@ -29,6 +36,7 @@ export function buildAdjacencyLists(
 ): AdjacencyLists {
   const spouses = new Map<string, SpouseData[]>()
   const children = new Map<string, Person[]>()
+  const parents = new Map<string, string[]>()
 
   relationships.forEach((r) => {
     if (r.type === 'marriage') {
@@ -36,15 +44,34 @@ export function buildAdjacencyLists(
       if (!spouses.has(r.person_b)) spouses.set(r.person_b, [])
 
       const pB = personsMap.get(r.person_b)
-      if (pB) spouses.get(r.person_a)?.push({ person: pB, note: r.note })
+      if (pB)
+        spouses
+          .get(r.person_a)
+          ?.push({ person: pB, note: r.note, createdAt: r.created_at })
 
       const pA = personsMap.get(r.person_a)
-      if (pA) spouses.get(r.person_b)?.push({ person: pA, note: r.note })
+      if (pA)
+        spouses
+          .get(r.person_b)
+          ?.push({ person: pA, note: r.note, createdAt: r.created_at })
     } else if (r.type === 'biological_child' || r.type === 'adopted_child') {
       if (!children.has(r.person_a)) children.set(r.person_a, [])
       const child = personsMap.get(r.person_b)
       if (child) children.get(r.person_a)?.push(child)
+      if (!parents.has(r.person_b)) parents.set(r.person_b, [])
+      parents.get(r.person_b)?.push(r.person_a)
     }
+  })
+
+  // Sắp xếp vợ/chồng theo thời gian ghi nhận quan hệ hôn nhân (trước
+  // xếp trước). Danh sách quan hệ lấy về được sắp theo id (UUID) nên
+  // thứ tự gốc không phản ánh ai là vợ/chồng trước hay sau.
+  spouses.forEach((spouseArray) => {
+    spouseArray.sort((a, b) => {
+      const aTime = a.createdAt ? Date.parse(a.createdAt) : Infinity
+      const bTime = b.createdAt ? Date.parse(b.createdAt) : Infinity
+      return aTime - bTime
+    })
   })
 
   // Sắp xếp con cái theo thứ tự sinh hoặc năm sinh
@@ -59,7 +86,11 @@ export function buildAdjacencyLists(
     })
   })
 
-  return { spousesByPersonId: spouses, childrenByPersonId: children }
+  return {
+    spousesByPersonId: spouses,
+    childrenByPersonId: children,
+    parentsByChildId: parents
+  }
 }
 
 /**
@@ -98,10 +129,50 @@ export function getFilteredTreeData(
     return true
   })
 
+  // Khi một người có từ 2 vợ/chồng trở lên, gom con theo từng người
+  // vợ/chồng (dựa vào liên kết cha/mẹ còn lại của mỗi người con) để cây
+  // thể hiện rõ con là của bà/ông nào. Thứ tự nhóm đi theo thứ tự
+  // vợ/chồng; nhóm con chưa rõ cha/mẹ còn lại xếp cuối.
+  let childGroups: ChildGroup[] | null = null
+  if (spousesList.length >= 2 && childrenList.length > 0) {
+    const spouseIds = new Set(spousesList.map((s) => s.person.id))
+    const bySpouse = new Map<string | null, Person[]>()
+    childrenList.forEach((c) => {
+      const parentIds = adj.parentsByChildId.get(c.id) || []
+      const coParentId =
+        parentIds.find((pid) => pid !== personId && spouseIds.has(pid)) ??
+        null
+      if (!bySpouse.has(coParentId)) bySpouse.set(coParentId, [])
+      bySpouse.get(coParentId)!.push(c)
+    })
+    childGroups = spousesList
+      .filter((s) => bySpouse.has(s.person.id))
+      .map((s) => ({
+        spouse: s.person,
+        children: bySpouse.get(s.person.id)!
+      }))
+    if (bySpouse.has(null)) {
+      childGroups.push({ spouse: null, children: bySpouse.get(null)! })
+    }
+  }
+
+  // Dấu nhẫn dành cho người bạn đời hiện tại (người đang sống cùng):
+  // ưu tiên vợ/chồng còn sống; nếu nhiều người còn sống thì lấy cuộc
+  // hôn nhân được ghi nhận gần nhất — spousesList đã được sắp theo
+  // thời gian ghi nhận tăng dần nên đó là phần tử cuối của nhóm.
+  let currentSpouseId: string | null = null
+  if (spousesList.length > 0) {
+    const livingSpouses = spousesList.filter((s) => !s.person.is_deceased)
+    const pool = livingSpouses.length > 0 ? livingSpouses : spousesList
+    currentSpouseId = pool[pool.length - 1].person.id
+  }
+
   return {
     person: personsMap.get(personId)!,
     spouses: spousesList,
-    children: childrenList
+    children: childrenList,
+    childGroups,
+    currentSpouseId
   }
 }
 
