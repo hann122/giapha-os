@@ -13,6 +13,7 @@ interface TreeData {
   spouses: { person: Person }[]
   children: { id: string }[]
   childGroups: { spouse: Person | null; children: Person[] }[] | null
+  currentSpouseId: string | null
 }
 
 /** Tên gọi chính (từ cuối của họ tên đầy đủ). */
@@ -87,27 +88,17 @@ export default function FamilyTreeNodeRenderer({
     // Từ 2 vợ/chồng trở lên: người chính ở giữa, vợ/chồng đầu tiên ở
     // bên trái, người thứ hai ở bên phải (các người tiếp theo tỏa dần
     // ra hai phía) để bà/ông nào cũng kề bên người chính.
-    const spouseEntries = data.spouses.map((spouseData, idx) => ({
-      spouseData,
-      idx
-    }))
-    let leftSpouses = spouseEntries.slice(0, 0)
-    let rightSpouses = spouseEntries
+    let leftSpouses = data.spouses.slice(0, 0)
+    let rightSpouses = data.spouses
     if (data.spouses.length >= 2) {
-      leftSpouses = spouseEntries.filter((_, i) => i % 2 === 0).reverse()
-      rightSpouses = spouseEntries.filter((_, i) => i % 2 === 1)
+      leftSpouses = data.spouses.filter((_, i) => i % 2 === 0).reverse()
+      rightSpouses = data.spouses.filter((_, i) => i % 2 === 1)
     }
-    const renderSpouse = ({
-      spouseData,
-      idx
-    }: {
-      spouseData: { person: Person }
-      idx: number
-    }) => (
+    const renderSpouse = (spouseData: { person: Person }) => (
       <div key={spouseData.person.id} className='relative flex'>
         <FamilyNodeCard
-          isRingVisible={idx === 0}
-          isPlusVisible={idx > 0}
+          isRingVisible={spouseData.person.id === data.currentSpouseId}
+          isPlusVisible={spouseData.person.id !== data.currentSpouseId}
           person={spouseData.person}
           level={level}
         />

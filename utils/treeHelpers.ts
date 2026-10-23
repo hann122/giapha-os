@@ -156,11 +156,23 @@ export function getFilteredTreeData(
     }
   }
 
+  // Dấu nhẫn dành cho người bạn đời hiện tại (người đang sống cùng):
+  // ưu tiên vợ/chồng còn sống; nếu nhiều người còn sống thì lấy cuộc
+  // hôn nhân được ghi nhận gần nhất — spousesList đã được sắp theo
+  // thời gian ghi nhận tăng dần nên đó là phần tử cuối của nhóm.
+  let currentSpouseId: string | null = null
+  if (spousesList.length > 0) {
+    const livingSpouses = spousesList.filter((s) => !s.person.is_deceased)
+    const pool = livingSpouses.length > 0 ? livingSpouses : spousesList
+    currentSpouseId = pool[pool.length - 1].person.id
+  }
+
   return {
     person: personsMap.get(personId)!,
     spouses: spousesList,
     children: childrenList,
-    childGroups
+    childGroups,
+    currentSpouseId
   }
 }
 
