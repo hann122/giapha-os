@@ -77,6 +77,30 @@ export default function TreeLinesStyle() {
           border-left: 2px solid #d6d3d1;
           width: 0; height: 30px;
         }
+
+        /* Nhóm con theo từng vợ/chồng: nhãn nằm gọn trong dải nối sẵn
+           có (đường nối của nhóm vẫn vẽ xuyên qua phía sau nhãn) để
+           các con cùng đời ngang hàng với các nhánh không có nhãn,
+           thay vì bị đẩy xuống thêm một tầng. */
+        .css-tree li.child-group {
+          padding-top: 0;
+        }
+        .css-tree .group-children {
+          padding-top: 0;
+        }
+        .css-tree .group-children::before {
+          display: none;
+        }
+        .css-tree .group-children > li {
+          padding-top: 0;
+        }
+        .css-tree .group-children > li::before,
+        .css-tree .group-children > li::after {
+          height: 0;
+        }
+        .css-tree .group-children > li:only-child::before {
+          height: 0;
+        }
       `
       }}
     />
