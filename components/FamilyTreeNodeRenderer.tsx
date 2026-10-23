@@ -146,13 +146,13 @@ export default function FamilyTreeNodeRenderer({
         {hasChildren && !isCollapsed && data.childGroups && (
           <ul>
             {data.childGroups.map((group) => (
-              <li key={group.spouse?.id ?? 'other'}>
+              <li key={group.spouse?.id ?? 'other'} className='child-group'>
                 <div className='flex justify-center'>
-                  <span className='inline-block rounded-full border border-stone-200 bg-white px-3 py-1 text-sm font-medium whitespace-nowrap text-amber-600'>
+                  <span className='relative z-10 inline-block rounded-full border border-stone-200 bg-white px-3 py-1 text-sm font-medium whitespace-nowrap text-amber-600'>
                     {buildGroupLabel(data.person!, group.spouse)}
                   </span>
                 </div>
-                <ul>
+                <ul className='group-children'>
                   {group.children.map((child) => (
                     <React.Fragment key={child.id}>
                       {renderTreeNode(child.id, new Set(visited), level + 1)}
