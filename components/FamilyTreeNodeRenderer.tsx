@@ -12,6 +12,41 @@ interface TreeData {
   person: Person | null
   spouses: { person: Person }[]
   children: { id: string }[]
+  childGroups: { spouse: Person | null; children: Person[] }[] | null
+}
+
+/** Tên gọi chính (từ cuối của họ tên đầy đủ). */
+function givenName(person: Person): string {
+  const parts = person.full_name.trim().split(/\s+/)
+  return parts[parts.length - 1]
+}
+
+/** Nhãn nhóm con theo cặp cha mẹ, VD: "Con ông Tạo bà Liên". */
+function buildGroupLabel(person: Person, spouse: Person | null): string {
+  if (!spouse) {
+    return person.gender === 'male'
+      ? `Con ông ${givenName(person)}`
+      : `Con bà ${givenName(person)}`
+  }
+  const husband =
+    person.gender === 'male'
+      ? person
+      : spouse.gender === 'male'
+        ? spouse
+        : null
+  const wife =
+    person.gender === 'female'
+      ? person
+      : spouse.gender === 'female'
+        ? spouse
+        : null
+  if (!husband && !wife) {
+    return `Con của ${givenName(person)} và ${givenName(spouse)}`
+  }
+  let label = 'Con'
+  if (husband) label += ` ông ${givenName(husband)}`
+  if (wife) label += ` bà ${givenName(wife)}`
+  return label
 }
 
 interface FamilyTreeNodeRendererProps {
@@ -49,6 +84,36 @@ export default function FamilyTreeNodeRenderer({
     const hasChildren = data.children.length > 0
     const isCollapsed = collapsedNodes.has(personId)
 
+    // Từ 2 vợ/chồng trở lên: người chính ở giữa, vợ/chồng đầu tiên ở
+    // bên trái, người thứ hai ở bên phải (các người tiếp theo tỏa dần
+    // ra hai phía) để bà/ông nào cũng kề bên người chính.
+    const spouseEntries = data.spouses.map((spouseData, idx) => ({
+      spouseData,
+      idx
+    }))
+    let leftSpouses = spouseEntries.slice(0, 0)
+    let rightSpouses = spouseEntries
+    if (data.spouses.length >= 2) {
+      leftSpouses = spouseEntries.filter((_, i) => i % 2 === 0).reverse()
+      rightSpouses = spouseEntries.filter((_, i) => i % 2 === 1)
+    }
+    const renderSpouse = ({
+      spouseData,
+      idx
+    }: {
+      spouseData: { person: Person }
+      idx: number
+    }) => (
+      <div key={spouseData.person.id} className='relative flex'>
+        <FamilyNodeCard
+          isRingVisible={idx === 0}
+          isPlusVisible={idx > 0}
+          person={spouseData.person}
+          level={level}
+        />
+      </div>
+    )
+
     return (
       <li>
         <div
@@ -57,18 +122,11 @@ export default function FamilyTreeNodeRenderer({
           {/* Main Person & Spouses Row */}
           <div
             className={`relative z-10 flex h-full items-stretch ${showAvatar ? 'rounded-2xl border border-stone-200/80 bg-white' : ''}`}>
+            {leftSpouses.map(renderSpouse)}
+
             <FamilyNodeCard person={data.person} level={level} />
 
-            {data.spouses.map((spouseData, idx) => (
-              <div key={spouseData.person.id} className='relative flex'>
-                <FamilyNodeCard
-                  isRingVisible={idx === 0}
-                  isPlusVisible={idx > 0}
-                  person={spouseData.person}
-                  level={level}
-                />
-              </div>
-            ))}
+            {rightSpouses.map(renderSpouse)}
 
             {/* Expand/Collapse Toggle – centered on the row */}
             {!hideExpandButtons && hasChildren && (
@@ -94,7 +152,27 @@ export default function FamilyTreeNodeRenderer({
         </div>
 
         {/* Render Children (if any and not collapsed) */}
-        {hasChildren && !isCollapsed && (
+        {hasChildren && !isCollapsed && data.childGroups && (
+          <ul>
+            {data.childGroups.map((group) => (
+              <li key={group.spouse?.id ?? 'other'}>
+                <div className='flex justify-center'>
+                  <span className='inline-block rounded-full border border-stone-200 bg-white px-3 py-1 text-sm font-medium whitespace-nowrap text-amber-600'>
+                    {buildGroupLabel(data.person!, group.spouse)}
+                  </span>
+                </div>
+                <ul>
+                  {group.children.map((child) => (
+                    <React.Fragment key={child.id}>
+                      {renderTreeNode(child.id, new Set(visited), level + 1)}
+                    </React.Fragment>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        )}
+        {hasChildren && !isCollapsed && !data.childGroups && (
           <ul>
             {data.children.map((child) => (
               <React.Fragment key={child.id}>

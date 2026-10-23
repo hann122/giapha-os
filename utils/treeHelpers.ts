@@ -8,6 +8,12 @@ export interface SpouseData {
 export interface AdjacencyLists {
   spousesByPersonId: Map<string, SpouseData[]>
   childrenByPersonId: Map<string, Person[]>
+  parentsByChildId: Map<string, string[]>
+}
+
+export interface ChildGroup {
+  spouse: Person | null
+  children: Person[]
 }
 
 export interface TreeFilterOptions {
@@ -29,6 +35,7 @@ export function buildAdjacencyLists(
 ): AdjacencyLists {
   const spouses = new Map<string, SpouseData[]>()
   const children = new Map<string, Person[]>()
+  const parents = new Map<string, string[]>()
 
   relationships.forEach((r) => {
     if (r.type === 'marriage') {
@@ -44,6 +51,8 @@ export function buildAdjacencyLists(
       if (!children.has(r.person_a)) children.set(r.person_a, [])
       const child = personsMap.get(r.person_b)
       if (child) children.get(r.person_a)?.push(child)
+      if (!parents.has(r.person_b)) parents.set(r.person_b, [])
+      parents.get(r.person_b)?.push(r.person_a)
     }
   })
 
@@ -59,7 +68,11 @@ export function buildAdjacencyLists(
     })
   })
 
-  return { spousesByPersonId: spouses, childrenByPersonId: children }
+  return {
+    spousesByPersonId: spouses,
+    childrenByPersonId: children,
+    parentsByChildId: parents
+  }
 }
 
 /**
@@ -98,10 +111,38 @@ export function getFilteredTreeData(
     return true
   })
 
+  // Khi một người có từ 2 vợ/chồng trở lên, gom con theo từng người
+  // vợ/chồng (dựa vào liên kết cha/mẹ còn lại của mỗi người con) để cây
+  // thể hiện rõ con là của bà/ông nào. Thứ tự nhóm đi theo thứ tự
+  // vợ/chồng; nhóm con chưa rõ cha/mẹ còn lại xếp cuối.
+  let childGroups: ChildGroup[] | null = null
+  if (spousesList.length >= 2 && childrenList.length > 0) {
+    const spouseIds = new Set(spousesList.map((s) => s.person.id))
+    const bySpouse = new Map<string | null, Person[]>()
+    childrenList.forEach((c) => {
+      const parentIds = adj.parentsByChildId.get(c.id) || []
+      const coParentId =
+        parentIds.find((pid) => pid !== personId && spouseIds.has(pid)) ??
+        null
+      if (!bySpouse.has(coParentId)) bySpouse.set(coParentId, [])
+      bySpouse.get(coParentId)!.push(c)
+    })
+    childGroups = spousesList
+      .filter((s) => bySpouse.has(s.person.id))
+      .map((s) => ({
+        spouse: s.person,
+        children: bySpouse.get(s.person.id)!
+      }))
+    if (bySpouse.has(null)) {
+      childGroups.push({ spouse: null, children: bySpouse.get(null)! })
+    }
+  }
+
   return {
     person: personsMap.get(personId)!,
     spouses: spousesList,
-    children: childrenList
+    children: childrenList,
+    childGroups
   }
 }
 
