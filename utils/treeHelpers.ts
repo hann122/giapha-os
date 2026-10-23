@@ -3,6 +3,7 @@ import { Person, Relationship } from '@/types'
 export interface SpouseData {
   person: Person
   note?: string | null
+  createdAt?: string | null
 }
 
 export interface AdjacencyLists {
@@ -43,10 +44,16 @@ export function buildAdjacencyLists(
       if (!spouses.has(r.person_b)) spouses.set(r.person_b, [])
 
       const pB = personsMap.get(r.person_b)
-      if (pB) spouses.get(r.person_a)?.push({ person: pB, note: r.note })
+      if (pB)
+        spouses
+          .get(r.person_a)
+          ?.push({ person: pB, note: r.note, createdAt: r.created_at })
 
       const pA = personsMap.get(r.person_a)
-      if (pA) spouses.get(r.person_b)?.push({ person: pA, note: r.note })
+      if (pA)
+        spouses
+          .get(r.person_b)
+          ?.push({ person: pA, note: r.note, createdAt: r.created_at })
     } else if (r.type === 'biological_child' || r.type === 'adopted_child') {
       if (!children.has(r.person_a)) children.set(r.person_a, [])
       const child = personsMap.get(r.person_b)
@@ -54,6 +61,17 @@ export function buildAdjacencyLists(
       if (!parents.has(r.person_b)) parents.set(r.person_b, [])
       parents.get(r.person_b)?.push(r.person_a)
     }
+  })
+
+  // Sắp xếp vợ/chồng theo thời gian ghi nhận quan hệ hôn nhân (trước
+  // xếp trước). Danh sách quan hệ lấy về được sắp theo id (UUID) nên
+  // thứ tự gốc không phản ánh ai là vợ/chồng trước hay sau.
+  spouses.forEach((spouseArray) => {
+    spouseArray.sort((a, b) => {
+      const aTime = a.createdAt ? Date.parse(a.createdAt) : Infinity
+      const bTime = b.createdAt ? Date.parse(b.createdAt) : Infinity
+      return aTime - bTime
+    })
   })
 
   // Sắp xếp con cái theo thứ tự sinh hoặc năm sinh
